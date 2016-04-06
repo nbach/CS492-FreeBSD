@@ -55,10 +55,11 @@ int main(int argc, char **argv){
 
 	//Endlessly write to memory. 
 	while(1){
-		mem=realloc(mem,memsize=memsize+1024*1024*10);
+		mem=realloc(mem,memsize=memsize*1.5+1024+1024);
+                printf("MEM: %d\n", memsize);
 		//If we have been told to lower consumption
 		if(pausevar){
-			mem = realloc(mem,memsize = memsize/8);
+			mem = realloc(mem,memsize = memsize/4);
 			sem_wait (&sem);
 			pausevar=0;
 			sem_post (&sem);

@@ -51,18 +51,28 @@ memStatus queryDev()
 		char buf[5+sizeof(int)];
 		int bytesRead=0;
 		int swap_pages=0;
+		int virtual_mem=0;
 		int swap_space=0;
 		//If the transfer worked
 		
 		if ((bytesRead = read(devfile,&buf,100))) {
-		    if(buf[0] & 0b1)
+		    if(buf[0] & 0b1){
 		    	status.target=true;
-		    if(buf[0] & 0b10)
+			printf("TARGET !! \n");
+			}
+		    if(buf[0] & 0b10){
 		    	status.min=true;
-		    if(buf[0] & 0b100)
+			printf("MIN !! \n");
+			}
+		    if(buf[0] & 0b100){
 		    	status.needed=true;
-		    if(buf[0] & 0b1000)
+			printf("NEEDED !!\n");
+			}
+		    if(buf[0] & 0b1000){
 		    	status.severe=true;
+			printf("SEVERE !! \n");
+			}
+
 		    memcpy(&swap_pages, &buf[1], sizeof(int));
 		    swap_space = swap_pages * getpagesize();
 		    printf("swap_space: %d\n", swap_space);
@@ -119,9 +129,9 @@ static void swapmode_sysctl(void)
 		swtot.ksw_used += kswap.ksw_used;
 		++nswdev;	
 	}
-	print_swap_stats("Swap Total", swtot.ksw_total, swtot.ksw_used,
-			swtot.ksw_total - swtot.ksw_used,
-			(swtot.ksw_used * 100.0) / swtot.ksw_total);	
+	//print_swap_stats("Swap Total", swtot.ksw_total, swtot.ksw_used,
+			//swtot.ksw_total - swtot.ksw_used,
+		//(swtot.ksw_used * 100.0) / swtot.ksw_total);	
 }
 
 static void physmem_sysctl(void)
@@ -159,7 +169,7 @@ void monitor_application(int signal_number, siginfo_t *info, void *unused){
 	application->pid = info->si_pid;	
 	application->condition = signal_number;
 	SLIST_INSERT_HEAD(&head, application, next_application);
-	printf("REGISTERED\n");
+	printf("REGISTERED FOR %d\n", application->condition);
 
 }
 
@@ -208,6 +218,7 @@ int main(int argc, char ** argv)
 	}
 
 //	daemon(0,0);
+	
 	
 	struct sigaction sig;
 	sig.sa_sigaction = monitor_application;
