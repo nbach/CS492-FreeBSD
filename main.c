@@ -18,7 +18,8 @@
 #include <sys/malloc.h>
 #include <sys/vmmeter.h>
 #include <sys/selinfo.h>
-
+#include <vm/vm.h>
+#include <vm/swap_pager.h>
 #define BUFFERSIZE 255
 
 /* Function prototypes */
@@ -40,13 +41,13 @@ static struct cdevsw severe_cdevsw = {
 };
 
 int manual_alert=1;
+extern int swap_pager_avail;
 
 
 /* vars */
 static struct cdev *severe_dev;
 static const size_t PAYLOAD_LEN=5;
-static char payload[PAYLOAD_LEN];
-static char previous_payload[PAYLOAD_LEN];
+static char payload[PAYLOAD_LEN + sizeof(int)];
 
 
 static struct mtx lowmem_mtx;
@@ -128,7 +129,6 @@ lowmem_read(struct cdev *dev __unused, struct uio *uio, int ioflag __unused)
   int error = 0;
   size_t amt=PAYLOAD_LEN;
   //Assign the status bytes
-  previous_payload[0] = payload[0];
   payload[0] = 0b0;
   if(vm_page_count_target())
     payload[0] |= 0b1;
@@ -142,30 +142,12 @@ lowmem_read(struct cdev *dev __unused, struct uio *uio, int ioflag __unused)
   if(vm_page_count_severe())
     payload[0] |= 0b1000;
 
-  payload[1] = 0x00; 
+  memcpy(&payload[1], &swap_pager_avail, sizeof(int));
+
   amt=MIN(uio->uio_resid, uio->uio_offset >= amt + 1 ? 0 :
       amt + 1 - uio->uio_offset);
 	if ((error = uiomove(payload, amt, uio)) != 0){}
   return (error);
-}
-
-static int 
-getstate()
-{
-  int payload=0x0;
-  if(vm_page_count_target())
-    payload |= 0b1;
-
-  if(vm_page_count_min())
-    payload |= 0b10;
-  
-  if(vm_paging_target() > 0)
-    payload |= 0b100;
-
-  if(vm_page_count_severe())
-    payload |= 0b1000;
-
-  return payload;
 }
 
 /*
@@ -176,8 +158,6 @@ static int
 lowmem_write(struct cdev *dev __unused, struct uio *uio, int ioflag __unused)
 {
   printf("lowmem_write ran\n");
-  manual_alert=2;
-  KNOTE_UNLOCKED(&kl, 1 /* notification */);
   return 0; 
 }
  
@@ -186,18 +166,35 @@ lowmem_write(struct cdev *dev __unused, struct uio *uio, int ioflag __unused)
 KQUEUE RELATED STUFF
 
 */
+static void
+wakeup_locked(void)
+{
+    KNOTE_LOCKED(&kl,0);
+}
+
+
+static void 
+poll_state(void)
+{
+  while(1){
+  	if(vm_page_count_target() || vm_page_count_min() || vm_paging_target() >0		|| vm_page_count_severe()){
+		wakeup_locked();
+		printf("WAKING UP!\n");
+		break;
+	}	
+	pause(NULL, 2); 
+}
+}
 
 static int
 lowmem_filter_read(struct knote *kn, long hint)
 {
-  mtx_assert(&lowmem_mtx, MA_OWNED);
-  if(manual_alert>0){
-    manual_alert--;
-    printf("filter_Read return 1\n");
-    return 1;
-  }
-  printf("filter_Read return 0\n");
-  return 0;
+   if(vm_page_count_target() || vm_page_count_min() || vm_paging_target() > 0 		|| vm_page_count_severe()){
+    		printf("filter_Read return 1\n");
+		return 1;
+	}
+    printf("filter_read return 0 \n");
+    return 0;
 }
 
 static void
@@ -217,8 +214,8 @@ static struct filterops lowmem_filtops_read = {
 static int
 lowmem_kqfilter(struct cdev *dev, struct knote *kn)
 {
-  int err = EINVAL;
  
+  int err = EINVAL;
   /* Figure out who needs service */
   lowmem_lock();
   switch (kn->kn_filter) {
@@ -231,12 +228,9 @@ lowmem_kqfilter(struct cdev *dev, struct knote *kn)
     err = EOPNOTSUPP;
     break;
   }
-  lowmem_unlock();
-
+  poll_state();
   if (err == -1) {
   }
-
-  printf("kfilter returning %i",err);
   return (err);
 }
 

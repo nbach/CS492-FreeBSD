@@ -6,13 +6,14 @@
 #include <libutil.h>
 #include <signal.h>
 #include <stdlib.h>
-
+#include <pthread.h>
 #include <sys/event.h>
 #include <sys/sysctl.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/queue.h>
 #include <vm/vm_param.h>
+
 using namespace std; 
 
 //These signals will eventually come from a .h file
@@ -29,22 +30,23 @@ static struct kvm_swap swtot;
 static int nswdev;
 static SLIST_HEAD(slisthead, managed_application) head = SLIST_HEAD_INITIALIZER(head);
 static struct slisthead *headp;
-
+struct kevent change[1];
+struct kevent event[1];
 //Track all the markers we want to observe
 struct memStatus
 {
 	bool target, min, needed, severe, swap_low;
 };
 
+memStatus status = {false,false,false,false,false};
 struct managed_application
 {
 	int pid, condition;
 	SLIST_ENTRY(managed_application) next_application;
 };
 //Query the device for updates statuses. 
-memStatus queryDev()
+void queryDev()
 {
-	memStatus status = {false,false,false,false,false};
 	// Read the file, C++ libraries are no good for reading from a device
 	int devfile = open("/dev/lowmem", O_RDWR | O_NONBLOCK);
 	if(devfile >= 0){
@@ -58,31 +60,30 @@ memStatus queryDev()
 		if ((bytesRead = read(devfile,&buf,100))) {
 		    if(buf[0] & 0b1){
 		    	status.target=true;
-			printf("TARGET !! \n");
+			printf("TARGET \n");
 			}
 		    if(buf[0] & 0b10){
 		    	status.min=true;
-			printf("MIN !! \n");
+			printf("MIN \n");
+		
 			}
 		    if(buf[0] & 0b100){
 		    	status.needed=true;
-			printf("NEEDED !!\n");
+			printf("NEEDED \n");
+
 			}
 		    if(buf[0] & 0b1000){
 		    	status.severe=true;
-			printf("SEVERE !! \n");
 			}
 
 		    memcpy(&swap_pages, &buf[1], sizeof(int));
 		    swap_space = swap_pages * getpagesize();
-		    printf("swap_space: %d\n", swap_space);
+			printf("SWAP SPACE %d\n", swap_space);
 		    if(swap_space<250000000){
 			status.swap_low=true;
-			printf("LOW SWAP!!\n");
 			}
 		}
 	}
-	return status;
 }
 
 static void print_swap_stats(const char *swdevname, intmax_t nblks, intmax_t bused, intmax_t bavail, float bpercent)
@@ -188,7 +189,6 @@ void suspend_applications()
 	SLIST_FOREACH(current_application, &head, next_application){
 		int pid = current_application->pid;
 		kill(pid, SIGSTOP);
-		printf("SUSPENDED: %d\n", pid);
 	}
 }
 
@@ -198,7 +198,6 @@ void resume_applications()
 	SLIST_FOREACH(current_application, &head, next_application){
 		int pid = current_application->pid;
 		kill(pid, SIGCONT);
-		printf("CONTINUED: %d\n", pid);
 		random_millisecond_sleep(0,1000);
 	}
 }
@@ -209,6 +208,17 @@ void resume_applications()
 * 1 = Under Minimum Free Pages Threshold
 * 2 = Not Enough Free Pages
 */
+void *monitor_signals(void* unusedParam)
+{	
+	struct sigaction sig;
+	sig.sa_sigaction = monitor_application;
+	sig.sa_flags = SA_SIGINFO;
+	sigaction(SIGSEVERE, &sig, NULL);
+	sigaction(SIGMIN, &sig, NULL);
+	sigaction(SIGPAGESNEEDED, &sig, NULL);
+	for (;;)
+		pause();
+}
 
 int main(int argc, char ** argv)
 {
@@ -219,28 +229,28 @@ int main(int argc, char ** argv)
 
 //	daemon(0,0);
 	
-	
-	struct sigaction sig;
-	sig.sa_sigaction = monitor_application;
-	sig.sa_flags = SA_SIGINFO;
-	sigaction(SIGSEVERE, &sig, NULL);
-	sigaction(SIGMIN, &sig, NULL);
-	sigaction(SIGPAGESNEEDED, &sig, NULL);
-		
 	SLIST_INIT(&head);
 	struct managed_application *current_application = (managed_application*)malloc(sizeof(struct managed_application));
 	
+	pthread_t signalThread;		
+	pthread_create(&signalThread, 0, monitor_signals, (void*)0);	
+	int fd=0;
+	fd = open("/dev/lowmem", O_RDWR | O_NONBLOCK);
+	int kq=kqueue();
+	EV_SET(&change[0],fd,EVFILT_READ, EV_ADD,0,0,0);
 	for(;;){
-		swapmode_sysctl();
-		physmem_sysctl();
-		memStatus status = queryDev();
-		if (status.severe || status.min || status.needed){
-			SLIST_FOREACH(current_application, &head, next_application){
-				int pid = current_application->pid;
-				if(status.severe && current_application->condition == SIGSEVERE){
-					kill(pid,SIGTEST);
-					printf("KILLED SEVERE: %d\n", pid);
-				}
+		printf("BLOCKING\n");		
+		int n=kevent(kq,change,1,event,1,NULL);
+		printf("UNBLOCKING\n");
+//		swapmode_sysctl();
+//		physmem_sysctl();
+		queryDev();
+		SLIST_FOREACH(current_application, &head, next_application){
+			int pid = current_application->pid;
+			printf("PID %d IS REGISTERED\n", pid);
+			if(status.severe && current_application->condition == SIGSEVERE){
+				kill(pid,SIGTEST);
+				printf("KILLED SEVERE: %d\n", pid);				}
 				if(status.min && current_application->condition == SIGMIN){
 					kill(pid,SIGTEST);
 					printf("KILLED MIN: %d\n", pid);
@@ -251,14 +261,11 @@ int main(int argc, char ** argv)
 				}
 				random_millisecond_sleep(0,1000);
 			}
-			status = queryDev();
+			queryDev();
 			if (status.severe || status.swap_low){
 				suspend_applications();
 				resume_applications();
 			}
-			
-		}
-		sleep(2);
 	}
 	return 0;
 }
