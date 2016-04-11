@@ -176,6 +176,7 @@ wakeup_locked(void)
 static void 
 poll_state(void)
 {
+  printf("POLLING \n");
   while(1){
   	if(vm_page_count_target() || vm_page_count_min() || vm_paging_target() >0		|| vm_page_count_severe()){
 		wakeup_locked();
@@ -189,10 +190,22 @@ poll_state(void)
 static int
 lowmem_filter_read(struct knote *kn, long hint)
 {
-   if(vm_page_count_target() || vm_page_count_min() || vm_paging_target() > 0 		|| vm_page_count_severe()){
-    		printf("filter_Read return 1\n");
-		return 1;
-	}
+   kn->kn_data = 0b0;
+   if(vm_page_count_target())
+	kn->kn_data |= 0b1;
+   if(vm_page_count_min())
+	kn->kn_data |= 0b10;
+   if(vm_paging_target() > 0)
+	kn->kn_data |= 0b100;
+   if(vm_page_count_severe())
+	kn->kn_data |= 0b1000;
+   if(swap_pager_avail < 256)
+	kn->kn_data |= 0b10000;
+   if(kn->kn_data>0){
+	printf("return 1\n");
+	return 1;
+	} 
+    poll_state();
     printf("filter_read return 0 \n");
     return 0;
 }
@@ -218,6 +231,7 @@ lowmem_kqfilter(struct cdev *dev, struct knote *kn)
   int err = EINVAL;
   /* Figure out who needs service */
   lowmem_lock();
+  printf("NEW KQ\n");
   switch (kn->kn_filter) {
   case EVFILT_READ:
       kn->kn_fop = &lowmem_filtops_read;
@@ -228,6 +242,7 @@ lowmem_kqfilter(struct cdev *dev, struct knote *kn)
     err = EOPNOTSUPP;
     break;
   }
+  lowmem_unlock();
   poll_state();
   if (err == -1) {
   }

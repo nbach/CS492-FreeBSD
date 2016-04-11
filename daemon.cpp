@@ -244,28 +244,34 @@ int main(int argc, char ** argv)
 		printf("UNBLOCKING\n");
 //		swapmode_sysctl();
 //		physmem_sysctl();
-		queryDev();
+		int flags = 0;
+		flags = event[0].data;
+		printf("DATA: %d\n", flags);
 		SLIST_FOREACH(current_application, &head, next_application){
 			int pid = current_application->pid;
 			printf("PID %d IS REGISTERED\n", pid);
-			if(status.severe && current_application->condition == SIGSEVERE){
+			if(flags & 0b1000 && current_application->condition == SIGSEVERE){
 				kill(pid,SIGTEST);
-				printf("KILLED SEVERE: %d\n", pid);				}
-				if(status.min && current_application->condition == SIGMIN){
-					kill(pid,SIGTEST);
-					printf("KILLED MIN: %d\n", pid);
-				}
-				if(status.needed && current_application->condition == SIGPAGESNEEDED){
-					kill(pid,SIGTEST);
-					printf("KILLED PAGES NEEDED: %d\n", pid);
-				}
-				random_millisecond_sleep(0,1000);
+				printf("KILLED SEVERE: %d\n", pid);					}
+			if(flags & 0b10 && current_application->condition == SIGMIN){
+				kill(pid,SIGTEST);
+				printf("KILLED MIN: %d\n", pid);
 			}
-			queryDev();
-			if (status.severe || status.swap_low){
-				suspend_applications();
-				resume_applications();
+			if(flags & 0b100 && current_application->condition == SIGPAGESNEEDED){
+				kill(pid,SIGTEST);
+				printf("KILLED PAGES NEEDED: %d\n", pid);
 			}
+			random_millisecond_sleep(0,1000);
+		}
+		if (flags & 0b1000 || flags & 0b10000){
+			suspend_applications();
+			resume_applications();	
+		}
+		struct timespec sleepFor;
+		sleepFor.tv_sec = 2;
+		sleepFor.tv_nsec = 0;
+		nanosleep(&sleepFor, 0);
+
 	}
 	return 0;
 }

@@ -39,7 +39,7 @@ int main(int argc, char **argv){
 	if (signal == SIGMIN)
 		kill(pid, SIGMIN);
 	if (signal == SIGPAGESNEEDED)
-		kill(pid, SIGMIN);
+		kill(pid, SIGPAGESNEEDED);
 
     //Assign the handler for SIGTEST
 	struct sigaction sig;
@@ -59,7 +59,7 @@ int main(int argc, char **argv){
                 printf("MEM: %d\n", memsize);
 		//If we have been told to lower consumption
 		if(pausevar){
-			mem = realloc(mem,memsize = memsize/4);
+			mem = realloc(mem,memsize = 0);
 			sem_wait (&sem);
 			pausevar=0;
 			sem_post (&sem);
