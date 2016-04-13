@@ -43,6 +43,22 @@ struct managed_application
 	int pid, condition;
 	SLIST_ENTRY(managed_application) next_application;
 };
+
+int isRegistered(int pid){
+
+	struct managed_application *current_application = (managed_application*)malloc(sizeof(struct managed_application));
+	struct managed_application *np_temp = (managed_application*)malloc(sizeof(struct managed_application));
+	
+	if (SLIST_FIRST(&head) != NULL){
+		SLIST_FOREACH_SAFE(current_application, &head, next_application, np_temp){
+			if (current_application->pid == pid){
+				return true;				
+			}
+		}
+	}
+	return false;	
+}
+
 //Query the device for updates statuses. 
 memStatus queryDev()
 {
