@@ -24,8 +24,6 @@ using namespace std;
 #define SIGMIN 46
 #define SIGPAGESNEEDED 47 
 
-#define CONVERT(v)	((int64_t)(v) * pagesize / blocksize)
-#define CONVERT_BLOCKS(v) 	((int64_t)(v) * pagesize)
 static struct kvm_swap swtot;
 static int nswdev;
 static SLIST_HEAD(slisthead, managed_application) head = SLIST_HEAD_INITIALIZER(head);
@@ -33,58 +31,11 @@ static struct slisthead *headp;
 struct kevent change[1];
 struct kevent event[1];
 //Track all the markers we want to observe
-struct memStatus
-{
-	bool target, min, needed, severe, swap_low;
-};
-
-memStatus status = {false,false,false,false,false};
 struct managed_application
 {
 	int pid, condition;
 	SLIST_ENTRY(managed_application) next_application;
 };
-//Query the device for updates statuses. 
-void queryDev()
-{
-	// Read the file, C++ libraries are no good for reading from a device
-	int devfile = open("/dev/lowmem", O_RDWR | O_NONBLOCK);
-	if(devfile >= 0){
-		char buf[5+sizeof(int)];
-		int bytesRead=0;
-		int swap_pages=0;
-		int virtual_mem=0;
-		int swap_space=0;
-		//If the transfer worked
-		
-		if ((bytesRead = read(devfile,&buf,100))) {
-		    if(buf[0] & 0b1){
-		    	status.target=true;
-			printf("TARGET \n");
-			}
-		    if(buf[0] & 0b10){
-		    	status.min=true;
-			printf("MIN \n");
-		
-			}
-		    if(buf[0] & 0b100){
-		    	status.needed=true;
-			printf("NEEDED \n");
-
-			}
-		    if(buf[0] & 0b1000){
-		    	status.severe=true;
-			}
-
-		    memcpy(&swap_pages, &buf[1], sizeof(int));
-		    swap_space = swap_pages * getpagesize();
-			printf("SWAP SPACE %d\n", swap_space);
-		    if(swap_space<250000000){
-			status.swap_low=true;
-			}
-		}
-	}
-}
 
 static void print_swap_stats(const char *swdevname, intmax_t nblks, intmax_t bused, intmax_t bavail, float bpercent)
 {
