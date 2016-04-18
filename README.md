@@ -13,7 +13,7 @@ clang++ daemon.cpp -lutil -pthread -o daemon
 
 clang memhog.c -o memhog
 
-sudo ./memhog [daemon pid] [signal #]
+sudo ./memhog [signal #]
 
 4/3
 
