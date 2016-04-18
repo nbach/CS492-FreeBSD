@@ -133,8 +133,6 @@ int main(int argc, char ** argv)
 		printf("BLOCKING\n");		
 		int n=kevent(kq,change,1,event,1,NULL);
 		printf("UNBLOCKING\n");
-//		swapmode_sysctl();
-//		physmem_sysctl();
 		int flags = 0;
 		flags = event[0].data;
 		printf("DATA: %d\n", flags);
