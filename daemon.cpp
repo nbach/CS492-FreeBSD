@@ -30,38 +30,12 @@ static SLIST_HEAD(slisthead, managed_application) head = SLIST_HEAD_INITIALIZER(
 static struct slisthead *headp;
 struct kevent change[1];
 struct kevent event[1];
-//Track all the markers we want to observe
+
 struct managed_application
 {
 	int pid, condition;
 	SLIST_ENTRY(managed_application) next_application;
 };
-
-static void swapmode_sysctl(void)
-{
-	struct kvm_swap kswap;
-	struct xswdev xsw;
-	size_t mibsize, size;
-	int mib[16], n;
-	swtot.ksw_total = 0;
-	swtot.ksw_used = 0;
-	mibsize = sizeof mib / sizeof mib[0];
-	sysctlnametomib("vm.swap_info", mib, &mibsize);
-	for (n=0; ; ++n){
-		mib[mibsize] = n;
-		size = sizeof xsw;
-		if (sysctl(mib, mibsize + 1, &xsw, &size, NULL, 0) == -1)
-			break;
-		kswap.ksw_used = xsw.xsw_used;
-		kswap.ksw_total = xsw.xsw_nblks;
-		swtot.ksw_total += kswap.ksw_total;
-		swtot.ksw_used += kswap.ksw_used;
-		++nswdev;	
-	}
-	//print_swap_stats("Swap Total", swtot.ksw_total, swtot.ksw_used,
-			//swtot.ksw_total - swtot.ksw_used,
-		//(swtot.ksw_used * 100.0) / swtot.ksw_total);	
-}
 
 static void physmem_sysctl(void)
 {
