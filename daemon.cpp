@@ -37,17 +37,6 @@ struct managed_application
 	SLIST_ENTRY(managed_application) next_application;
 };
 
-static void physmem_sysctl(void)
-{
-	int mib[2], usermem;
-	size_t len;
-	mib[0] = CTL_HW;
-	mib[1] = HW_USERMEM;
-	len = sizeof(usermem);
-	sysctl(mib, 2, &usermem, &len, NULL, 0);
-//	cout << "Free memory: " << usermem << endl; //change to printf
-}
-
 void monitor_application(int signal_number, siginfo_t *info, void *unused){
 	
 	struct managed_application *current_application = (managed_application*)malloc(sizeof(struct managed_application));
