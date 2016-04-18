@@ -7,7 +7,7 @@ make
 
 sudo kldload ./main.ko
 
-clang++ daemon.cpp -lutil -o daemon
+clang++ daemon.cpp -lutil -pthread -o daemon
 
 ./daemon
 
