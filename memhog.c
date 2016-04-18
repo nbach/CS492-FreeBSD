@@ -24,15 +24,24 @@ void receiveData(int n, siginfo_t *info, void *unused) {
 	sem_post (&sem);
 }
 
+int getDaemonPID(){
+	FILE *in = popen("pgrep daemon", "r");
+	int pid = 0;
+	char line[20];
+	fgets(line, 20, in);
+	sscanf(line, "%d", &pid);
+	return pid;
+}
+
 int main(int argc, char **argv){
 	//Init the semaphore
     sem_init(&sem,1,1) ;
-	if (argc != 3){
-		printf("usage: pid signal\n");
+	if (argc != 2){
+		printf("usage: signal\n");
 		return -1;
 	}
 	//register to be monitored for severe alerts
-	int pid = atoi(argv[1]);
+	int pid = getDaemonPID();
 	int signal = atoi(argv[2]);
 	if (signal == SIGSEVERE)
 		kill(pid, SIGSEVERE);
