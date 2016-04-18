@@ -37,29 +37,6 @@ struct managed_application
 	SLIST_ENTRY(managed_application) next_application;
 };
 
-static void print_swap_stats(const char *swdevname, intmax_t nblks, intmax_t bused, intmax_t bavail, float bpercent)
-{
-	char usedbuf[5];
-	char availbuf[5];
-	int hlen, pagesize;
-	long blocksize;
-	const char *header;	
-
-	pagesize = getpagesize();
-	getbsize(&hlen, &blocksize);
-	header = getbsize(&hlen, &blocksize);
-		
-
-	(void)printf("%-15s %*s %8s %8s %8s\n", "Device", hlen, header, "Used", "Avail", "Capacity");
-	
-	printf("%-15s %*jd ", swdevname, hlen, CONVERT(nblks));
-	humanize_number(usedbuf, sizeof(usedbuf), CONVERT_BLOCKS(bused), "",
-			HN_AUTOSCALE, HN_B | HN_NOSPACE | HN_DECIMAL);
-	humanize_number(availbuf, sizeof(availbuf), CONVERT_BLOCKS(bavail), "",
-			HN_AUTOSCALE, HN_B | HN_NOSPACE | HN_DECIMAL);
-	printf("%8s %8s %5.0f%%\n", usedbuf, availbuf, bpercent);
-}
-
 static void swapmode_sysctl(void)
 {
 	struct kvm_swap kswap;
