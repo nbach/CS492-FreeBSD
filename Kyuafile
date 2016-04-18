@@ -1,0 +1,5 @@
+syntax(2)
+
+test_suite('test')
+
+atf_test_program{name='registration_test'}
