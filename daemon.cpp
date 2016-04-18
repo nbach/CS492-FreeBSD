@@ -24,19 +24,25 @@ using namespace std;
 #define SIGMIN 46
 #define SIGPAGESNEEDED 47 
 
-static struct kvm_swap swtot;
-static int nswdev;
 static SLIST_HEAD(slisthead, managed_application) head = SLIST_HEAD_INITIALIZER(head);
 static struct slisthead *headp;
 struct kevent change[1];
 struct kevent event[1];
 
+
+/*
+*  Used to hold information about applications which have asked to be informed
+*  about low memory conditions
+*/
 struct managed_application
 {
 	int pid, condition;
 	SLIST_ENTRY(managed_application) next_application;
 };
 
+/*
+  This function handles the registration and deregistration of different applic   ations. It is called as part of the signal handling thread
+*/
 void monitor_application(int signal_number, siginfo_t *info, void *unused){
 	
 	struct managed_application *current_application = (managed_application*)malloc(sizeof(struct managed_application));
@@ -65,6 +71,9 @@ void monitor_application(int signal_number, siginfo_t *info, void *unused){
 
 }
 
+/*
+    Sleeps for a random amount of milliseconds between min and max
+*/
 void random_millisecond_sleep(int min, int max)
 {
 	struct timespec sleepFor;
@@ -74,6 +83,9 @@ void random_millisecond_sleep(int min, int max)
 	nanosleep(&sleepFor, 0);
 }
 
+/*
+	Sends SIGSTOP to all applications which are currently in our list of mon	itored applications
+*/
 void suspend_applications()
 {
 	struct managed_application *current_application = (managed_application*)malloc(sizeof(struct managed_application));
@@ -83,6 +95,9 @@ void suspend_applications()
 	}
 }
 
+/*
+	Secnds SIGCONT to all applications currently in our list of monitored ap	plications. Between each SIGCONT there is a random sleep between 0 and 1 	seconds in order to avoid thundering herd issues.
+*/
 void resume_applications()
 {
 	struct managed_application *current_application = (managed_application*)malloc(sizeof(struct managed_application));
@@ -94,10 +109,7 @@ void resume_applications()
 }
 
 /*
-* Memory Conditions:
-* 0 = Severe Low Memory
-* 1 = Under Minimum Free Pages Threshold
-* 2 = Not Enough Free Pages
+	Block waiting for registration or deregistration signals. This runs on a 	thread seperate from the main thread as the main thread will be blocking 	on the char device
 */
 void *monitor_signals(void* unusedParam)
 {	
@@ -110,7 +122,9 @@ void *monitor_signals(void* unusedParam)
 	for (;;)
 		pause();
 }
-
+/*
+	Loops and blocks on the kqueue handled by our char device. On a low memory event we notify all registered applications interested in that event
+*/
 int main(int argc, char ** argv)
 {
 	if (argc != 1){
@@ -118,7 +132,7 @@ int main(int argc, char ** argv)
 		return -1;
 	}
 
-//	daemon(0,0);
+	daemon(0,0);
 	
 	SLIST_INIT(&head);
 	struct managed_application *current_application = (managed_application*)malloc(sizeof(struct managed_application));
