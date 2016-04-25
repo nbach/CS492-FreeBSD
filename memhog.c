@@ -30,6 +30,7 @@ int getDaemonPID(){
 	char line[20];
 	fgets(line, 20, in);
 	sscanf(line, "%d", &pid);
+	printf("TEST\n");
 	return pid;
 }
 
@@ -42,14 +43,16 @@ int main(int argc, char **argv){
 	}
 	//register to be monitored for severe alerts
 	int pid = getDaemonPID();
-	int signal = atoi(argv[2]);
+	printf("TEST4\n");
+	int signal = atoi(argv[1]);
+	printf("TEST3\n");
 	if (signal == SIGSEVERE)
 		kill(pid, SIGSEVERE);
 	if (signal == SIGMIN)
 		kill(pid, SIGMIN);
 	if (signal == SIGPAGESNEEDED)
 		kill(pid, SIGPAGESNEEDED);
-
+	printf("TEST2\n");
     //Assign the handler for SIGTEST
 	struct sigaction sig;
 	sig.sa_sigaction = receiveData;

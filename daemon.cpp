@@ -127,7 +127,7 @@ int main(int argc, char ** argv)
 		return -1;
 	}
 
-	daemon(0,0);
+//	daemon(0,0);
 	
 	SLIST_INIT(&head);
 	struct managed_application *current_application = (managed_application*)malloc(sizeof(struct managed_application));
